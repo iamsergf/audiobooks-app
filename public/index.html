@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Аудиокниги</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Аудиокниги</div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="catalog" role="tab">Каталог</button>
+      <button class="tab" data-tab="library" role="tab">Мои книги</button>
+    </nav>
+    <span id="payMode" class="badge" hidden></span>
+    <button id="nativeSettings" class="gear" hidden aria-label="Адрес сервера" title="Адрес сервера">⚙</button>
+  </header>
+
+  <main>
+    <section id="catalog">
+      <form id="searchForm" class="search">
+        <input id="q" type="search" placeholder="Название или автор" autocomplete="off" aria-label="Поиск">
+        <button type="submit" class="primary">Найти</button>
+      </form>
+      <div id="providers" class="chips" aria-label="Провайдеры"></div>
+      <div id="notice" class="notice" hidden></div>
+      <div id="results" class="grid"></div>
+    </section>
+
+    <section id="library" hidden>
+      <div id="libraryList" class="grid"></div>
+    </section>
+  </main>
+
+  <dialog id="bookDialog">
+    <button class="close" id="closeDialog" aria-label="Закрыть">×</button>
+    <div id="bookBody"></div>
+  </dialog>
+
+  <footer id="player" class="player" hidden>
+    <div class="now">
+      <img id="pCover" alt="">
+      <div class="meta">
+        <div id="pTitle" class="p-title"></div>
+        <div id="pTrack" class="p-track"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="pPrev" title="Предыдущая глава" aria-label="Предыдущая глава">⏮</button>
+      <button id="pBack" title="Назад на 15 секунд" aria-label="Назад на 15 секунд">−15</button>
+      <button id="pPlay" class="play" aria-label="Воспроизвести">▶</button>
+      <button id="pFwd" title="Вперёд на 30 секунд" aria-label="Вперёд на 30 секунд">+30</button>
+      <button id="pNext" title="Следующая глава" aria-label="Следующая глава">⏭</button>
+      <select id="pSpeed" title="Скорость" aria-label="Скорость">
+        <option value="0.75">0.75×</option>
+        <option value="1" selected>1×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+    </div>
+    <div class="seek">
+      <span id="pCur">0:00</span>
+      <input id="pSeek" type="range" min="0" max="1000" value="0" aria-label="Позиция">
+      <span id="pDur">0:00</span>
+    </div>
+    <audio id="audio" preload="metadata"></audio>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

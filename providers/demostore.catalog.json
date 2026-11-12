@@ -1,0 +1,6 @@
+[
+  { "id": "alice", "archiveId": "alice_in_wonderland_librivox", "title": "Alice's Adventures in Wonderland", "author": "Lewis Carroll", "price": { "amount": 499, "currency": "usd" } },
+  { "id": "tom-sawyer", "archiveId": "tom_sawyer_librivox", "title": "The Adventures of Tom Sawyer", "author": "Mark Twain", "price": { "amount": 699, "currency": "usd" } },
+  { "id": "moby-dick", "archiveId": "moby_dick_librivox", "title": "Moby Dick, or the Whale", "author": "Herman Melville", "price": { "amount": 899, "currency": "eur" } },
+  { "id": "art-of-war", "archiveId": "art_of_war_librivox", "title": "The Art of War", "author": "Sun Tzu", "price": { "amount": 299, "currency": "usd" } }
+]

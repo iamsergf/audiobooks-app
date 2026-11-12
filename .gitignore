@@ -1,0 +1,14 @@
+# Секреты и локальные данные
+.env
+data/
+
+# Node
+node_modules/
+
+# Xcode
+ios/build/
+ios/DerivedData/
+xcuserdata/
+*.xcuserstate
+
+.DS_Store

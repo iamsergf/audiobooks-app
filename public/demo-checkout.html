@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Демо-оплата</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body style="padding-bottom:0">
+  <div class="checkout">
+    <div class="notice">Демо-режим: ключ Stripe не настроен. Данные карты не запрашиваются, деньги не списываются.</div>
+    <h1 id="title">Загрузка…</h1>
+    <div class="sum" id="sum"></div>
+    <div class="row">
+      <button class="primary" id="pay" disabled>Имитировать успешную оплату</button>
+      <button id="cancel">Отмена</button>
+    </div>
+  </div>
+  <script>
+    const token = new URLSearchParams(location.search).get('token') || '';
+    const $ = (id) => document.getElementById(id);
+    $('cancel').onclick = () => (location.href = '/?cancelled=1');
+
+    fetch('/api/demo-order?token=' + encodeURIComponent(token))
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((order) => {
+        $('title').textContent = order.title;
+        $('sum').textContent = new Intl.NumberFormat('ru-RU', {
+          style: 'currency', currency: order.price.currency.toUpperCase(),
+        }).format(order.price.amount / 100);
+        $('pay').disabled = false;
+        $('pay').onclick = async () => {
+          $('pay').disabled = true;
+          const r = await fetch('/api/demo-pay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          });
+          if (r.ok) location.href = '/?bought=' + encodeURIComponent(order.item);
+          else $('title').textContent = 'Не удалось завершить заказ';
+        };
+      })
+      .catch(() => ($('title').textContent = 'Заказ не найден или устарел'));
+  </script>
+</body>
+</html>
