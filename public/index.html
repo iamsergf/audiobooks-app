@@ -14,6 +14,7 @@
       <button class="tab" data-tab="library" role="tab">Мои книги</button>
     </nav>
     <span id="payMode" class="badge" hidden></span>
+    <button id="litresAccount" class="account" hidden></button>
     <button id="nativeSettings" class="gear" hidden aria-label="Адрес сервера" title="Адрес сервера">⚙</button>
   </header>
 
@@ -23,6 +24,16 @@
         <input id="q" type="search" placeholder="Название или автор" autocomplete="off" aria-label="Поиск">
         <button type="submit" class="primary">Найти</button>
       </form>
+      <div class="filters">
+        <input id="fAuthor" type="search" placeholder="Автор" autocomplete="off" aria-label="Автор" form="searchForm">
+        <input id="fReader" type="search" placeholder="Чтец" autocomplete="off" aria-label="Чтец" form="searchForm"
+               title="Поиск по чтецу работает в ЛитРес и Internet Archive">
+        <select id="fLang" aria-label="Язык">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+          <option value="">Любой язык</option>
+        </select>
+      </div>
       <div id="providers" class="chips" aria-label="Провайдеры"></div>
       <div id="notice" class="notice" hidden></div>
       <div id="results" class="grid"></div>
@@ -32,6 +43,22 @@
       <div id="libraryList" class="grid"></div>
     </section>
   </main>
+
+  <dialog id="litresDialog">
+    <button class="close" id="closeLitres" aria-label="Закрыть">×</button>
+    <h2>Аккаунт ЛитРес</h2>
+    <form id="litresForm" class="login">
+      <p class="pay-note">Войдите, чтобы слушать книги, купленные на ЛитРес. Пароль передаётся только в ЛитРес и не сохраняется.</p>
+      <input id="litresLogin" type="text" placeholder="Почта или телефон" autocomplete="username" required>
+      <input id="litresPwd" type="password" placeholder="Пароль" autocomplete="current-password" required>
+      <button type="submit" class="primary">Войти</button>
+    </form>
+    <div id="litresLogged" hidden>
+      <p>Вы вошли как <b id="litresName"></b>.</p>
+      <button id="litresLogout">Выйти</button>
+    </div>
+    <p id="litresError" class="notice" hidden></p>
+  </dialog>
 
   <dialog id="bookDialog">
     <button class="close" id="closeDialog" aria-label="Закрыть">×</button>

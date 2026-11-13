@@ -1,6 +1,6 @@
 // LibriVox — бесплатные аудиокниги (общественное достояние). Ключ API не нужен.
 // Документация: https://librivox.org/api/info
-const { getJson, stripHtml } = require('./util');
+const { getJson, stripHtml, langCode, matches } = require('./util');
 
 const BASE = 'https://librivox.org/api/feed/audiobooks/';
 
@@ -19,7 +19,7 @@ function toSummary(b) {
     author: authorName(b.authors) || 'Неизвестный автор',
     cover: (b.coverart_thumbnail || b.coverart_jpg || '').replace('http://', 'https://') || null,
     durationSec: Number(b.totaltimesecs) || null,
-    language: b.language || null,
+    language: langCode(b.language),
     price: null,
   };
 }
@@ -40,17 +40,29 @@ module.exports = {
   name: 'LibriVox',
   paid: false,
 
-  async search(q) {
-    if (!q) return (await query({ limit: '20' })).map(toSummary);
-    // API ищет по началу названия (^) и по фамилии автора — объединяем оба запроса.
-    const [byTitle, byAuthor] = await Promise.all([
-      query({ title: '^' + q, limit: '15' }),
-      query({ author: q.split(/\s+/).pop(), limit: '15' }),
-    ]);
+  async search(q, filters = {}) {
+    // API LibriVox не умеет искать по чтецу и по языку: по чтецу ничего не отдаём,
+    // язык отсеиваем уже в полученных результатах.
+    if (filters.reader) return [];
+    const lastName = (s) => s.trim().split(/\s+/).pop();
+    let books;
+    if (filters.author) {
+      books = (await query({ author: lastName(filters.author), limit: '50' })).filter((b) => matches(b.title, q));
+    } else if (!q) {
+      books = await query({ limit: '20' });
+    } else {
+      // API ищет по началу названия (^) и по фамилии автора — объединяем оба запроса.
+      const [byTitle, byAuthor] = await Promise.all([
+        query({ title: '^' + q, limit: '15' }),
+        query({ author: lastName(q), limit: '15' }),
+      ]);
+      books = [...byTitle, ...byAuthor];
+    }
     const seen = new Set();
-    return [...byTitle, ...byAuthor]
+    return books
       .filter((b) => !seen.has(b.id) && seen.add(b.id))
-      .map(toSummary);
+      .map(toSummary)
+      .filter((b) => !filters.lang || b.language === filters.lang);
   },
 
   async getBook(id) {

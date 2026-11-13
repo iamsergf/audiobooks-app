@@ -37,4 +37,18 @@ function stripHtml(html) {
     .trim();
 }
 
-module.exports = { getJson, parseDuration, stripHtml };
+// Провайдеры пишут язык по-разному ("rus", "Russian", "ru") — приводим к коду "ru" / "en".
+function langCode(value) {
+  const v = String(value || '').toLowerCase();
+  if (['ru', 'rus', 'russian', 'русский'].includes(v)) return 'ru';
+  if (['en', 'eng', 'english'].includes(v)) return 'en';
+  return v || null;
+}
+
+// Все слова из needle встречаются в text (без учёта регистра). Пустой needle подходит всегда.
+function matches(text, needle) {
+  const hay = String(text || '').toLowerCase();
+  return String(needle || '').toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
+}
+
+module.exports = { getJson, parseDuration, stripHtml, langCode, matches };

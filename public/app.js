@@ -40,6 +40,7 @@ const store = {
   },
 };
 
+const nativeBridge = window.webkit?.messageHandlers?.native; // есть только внутри iOS-приложения
 const keyOf = (b) => `${b.provider}:${b.id}`;
 
 function fmtTime(sec) {
@@ -69,14 +70,14 @@ const providerName = (id) => state.config.providers.find((p) => p.id === id)?.na
 const isOwned = (b) => state.config.owned.includes(keyOf(b));
 
 function remember(book, patch = {}) {
-  const { provider, id, title, author, cover, durationSec, price } = book;
+  const { provider, id, title, author, reader, cover, durationSec, price } = book;
   const key = keyOf(book);
   state.library[key] = {
     track: 0,
     time: 0,
     ...state.library[key],
     ...patch,
-    book: { provider, id, title, author, cover, durationSec, price },
+    book: { provider, id, title, author, reader, cover, durationSec, price },
     updated: Date.now(),
   };
   store.set('library', state.library);
@@ -85,7 +86,7 @@ function remember(book, patch = {}) {
 // --- карточки ---------------------------------------------------------------
 function priceLabel(b) {
   if (!b.price) return h('span', { class: 'price free' }, 'Бесплатно');
-  if (isOwned(b)) return h('span', { class: 'price owned' }, 'Куплено');
+  if (isOwned(b) || b.owned) return h('span', { class: 'price owned' }, 'Куплено');
   return h('span', { class: 'price' }, fmtPrice(b.price));
 }
 
@@ -102,6 +103,7 @@ function card(b, progress) {
       { class: 'info' },
       h('div', { class: 'title' }, b.title),
       h('div', { class: 'author' }, b.author),
+      b.reader && h('div', { class: 'reader' }, 'Читает: ' + b.reader),
       h('div', { class: 'foot' }, h('span', {}, providerName(b.provider)), priceLabel(b))
     )
   );
@@ -127,7 +129,13 @@ async function search() {
   box.replaceChildren(h('div', { class: 'empty' }, 'Ищем…'));
   showNotice('');
   try {
-    const params = new URLSearchParams({ q: $('q').value.trim(), providers: selected.join(',') });
+    const params = new URLSearchParams({
+      q: $('q').value.trim(),
+      author: $('fAuthor').value.trim(),
+      reader: $('fReader').value.trim(),
+      lang: $('fLang').value,
+      providers: selected.join(','),
+    });
     const { results, errors } = await api('/api/search?' + params);
     if (seq !== searchSeq) return;
     if (errors.length) {
@@ -191,7 +199,14 @@ function renderBook(book) {
   const playing = state.current && keyOf(state.current.book) === keyOf(book) ? state.current.index : -1;
   const actions = [];
 
-  if (book.locked) {
+  if (book.locked && book.buyUrl) {
+    // Книга покупается на сайте провайдера; после покупки она откроется здесь сама.
+    const label = `Купить на сайте за ${fmtPrice(book.price)}`;
+    actions.push(
+      h('button', { class: 'primary', onclick: () => (nativeBridge ? (location.href = book.buyUrl) : window.open(book.buyUrl, '_blank', 'noopener')) }, label),
+      h('button', { onclick: () => openBook(book.provider, book.id) }, 'Я купил — обновить')
+    );
+  } else if (book.locked) {
     const buy = h('button', { class: 'primary' }, `Купить за ${fmtPrice(book.price)}`);
     buy.onclick = async () => {
       buy.disabled = true;
@@ -234,7 +249,11 @@ function renderBook(book) {
           h(
             'p',
             { class: 'pay-note' },
-            state.config.paymentMode === 'demo'
+            book.buyUrl
+              ? state.config.litres?.login
+                ? 'Оплата проходит на сайте ЛитРес под вашим аккаунтом.'
+                : 'Войдите в аккаунт ЛитРес (кнопка в шапке), чтобы слушать купленные книги.'
+              : state.config.paymentMode === 'demo'
               ? 'Демо-режим: оплата имитируется, карта не нужна.'
               : 'Оплата картой любой страны на защищённой странице Stripe.'
           )
@@ -357,14 +376,49 @@ $('searchForm').onsubmit = (e) => {
   e.preventDefault();
   search();
 };
+$('fLang').value = store.get('lang', 'ru');
+$('fLang').onchange = () => {
+  store.set('lang', $('fLang').value);
+  search();
+};
 for (const t of document.querySelectorAll('.tab')) t.onclick = () => showTab(t.dataset.tab);
 $('closeDialog').onclick = () => $('bookDialog').close();
 $('bookDialog').addEventListener('click', (e) => {
   if (e.target === $('bookDialog')) $('bookDialog').close(); // клик по фону
 });
 
+// Аккаунт ЛитРес: вход, чтобы слушать купленное там.
+function renderLitresAccount() {
+  const account = state.config.litres;
+  $('litresAccount').hidden = !account;
+  if (!account) return;
+  $('litresAccount').textContent = account.login ? `ЛитРес: ${account.login}` : 'Войти в ЛитРес';
+  $('litresForm').hidden = Boolean(account.login);
+  $('litresLogged').hidden = !account.login;
+  $('litresName').textContent = account.login || '';
+}
+async function litresRequest(path, body) {
+  $('litresError').hidden = true;
+  try {
+    state.config.litres = await post(path, body);
+    $('litresPwd').value = '';
+    renderLitresAccount();
+    if (state.config.litres.login) $('litresDialog').close();
+    search();
+  } catch (e) {
+    $('litresError').hidden = false;
+    $('litresError').textContent = e.message;
+  }
+}
+$('litresAccount').onclick = () => $('litresDialog').showModal();
+$('closeLitres').onclick = () => $('litresDialog').close();
+$('litresForm').onsubmit = (e) => {
+  e.preventDefault();
+  litresRequest('/api/litres/login', { login: $('litresLogin').value.trim(), pwd: $('litresPwd').value });
+};
+$('litresLogout').onclick = () => litresRequest('/api/litres/logout', {});
+
 // Внутри iOS-приложения показываем кнопку настроек адреса сервера.
-const nativeBridge = window.webkit?.messageHandlers?.native;
 if (nativeBridge) {
   $('nativeSettings').hidden = false;
   $('nativeSettings').onclick = () => nativeBridge.postMessage('settings');
@@ -409,6 +463,7 @@ async function handleReturn() {
     $('payMode').textContent = mode === 'demo' ? 'Оплата: демо-режим' : 'Оплата: тестовый режим Stripe';
   }
   renderProviders();
+  renderLitresAccount();
   await handleReturn();
   search();
 })();

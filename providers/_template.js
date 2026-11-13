@@ -14,17 +14,20 @@ module.exports = {
   paid: true, // есть ли платные книги
   enabled: () => Boolean(process.env.MYSTORE_API_KEY), // необязательно: скрыть, если не настроен
 
-  // -> массив кратких карточек
-  async search(q) {
+  // -> массив кратких карточек.
+  // filters: { author, reader, lang } — автор, чтец и язык ("ru" / "en" / пусто — любой).
+  // Если API провайдера не умеет какой-то фильтр, отфильтруйте результаты сами.
+  async search(q, filters = {}) {
     const data = await getJson(`${API}/books?query=${encodeURIComponent(q)}`, { headers: auth() });
     return data.items.map((b) => ({
       provider: 'mystore',
       id: String(b.id),
       title: b.title,
       author: b.author,
+      reader: b.narrator || null, // чтец, если провайдер его отдаёт
       cover: b.coverUrl || null,
       durationSec: b.duration || null,
-      language: b.language || null,
+      language: b.language || null, // "ru", "en"...
       // null — бесплатно; иначе сумма в минимальных единицах валюты (центы)
       price: b.price ? { amount: b.price.cents, currency: b.price.currency.toLowerCase() } : null,
     }));

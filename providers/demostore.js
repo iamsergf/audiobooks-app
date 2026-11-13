@@ -4,6 +4,7 @@
 // на вызовы API вашего поставщика — см. _template.js.
 const catalog = require('./demostore.catalog.json');
 const archive = require('./archive');
+const { matches } = require('./util');
 
 const toSummary = (b) => ({
   provider: 'demostore',
@@ -12,7 +13,7 @@ const toSummary = (b) => ({
   author: b.author,
   cover: `https://archive.org/services/img/${b.archiveId}`,
   durationSec: null,
-  language: 'eng',
+  language: 'en',
   price: b.price,
 });
 
@@ -21,10 +22,10 @@ module.exports = {
   name: 'Демо-магазин (платный)',
   paid: true,
 
-  async search(q) {
-    const needle = q.toLowerCase();
+  async search(q, filters = {}) {
+    if (filters.reader || (filters.lang && filters.lang !== 'en')) return [];
     return catalog
-      .filter((b) => !needle || `${b.title} ${b.author}`.toLowerCase().includes(needle))
+      .filter((b) => matches(`${b.title} ${b.author}`, q) && matches(b.author, filters.author))
       .map(toSummary);
   },
 

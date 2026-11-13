@@ -19,6 +19,7 @@ if (fs.existsSync(envFile)) {
 
 const providers = require('./providers');
 const payments = require('./payments');
+const litres = require('./providers/litres');
 
 const PORT = Number(process.env.PORT) || 3000;
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -38,6 +39,10 @@ function grant(uid, item) {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   fs.writeFileSync(DATA_FILE, JSON.stringify(purchases, null, 2));
 }
+
+// Книгу можно слушать, если она бесплатная, куплена здесь или уже есть в аккаунте у провайдера.
+const isUnlocked = (book, uid) =>
+  !book.price || book.owned === true || owned(uid).includes(`${book.provider}:${book.id}`);
 
 // --- помощники --------------------------------------------------------------
 function send(res, status, body, headers = {}) {
@@ -89,13 +94,16 @@ const api = {
     providers: providers.list().map((p) => ({ id: p.id, name: p.name, paid: p.paid })),
     paymentMode: payments.mode(), // demo | test | live
     owned: owned(uid),
+    litres: litres.enabled() ? { login: litres.account().login } : null,
   }),
 
   'GET /api/search': async (req, res, url) => {
     const q = (url.searchParams.get('q') || '').trim().slice(0, 100);
     const wanted = (url.searchParams.get('providers') || '').split(',').filter(Boolean);
     const list = providers.list().filter((p) => !wanted.length || wanted.includes(p.id));
-    const settled = await Promise.allSettled(list.map((p) => p.search(q)));
+    const param = (name) => (url.searchParams.get(name) || '').trim().slice(0, 100);
+    const filters = { author: param('author'), reader: param('reader'), lang: param('lang').toLowerCase() };
+    const settled = await Promise.allSettled(list.map((p) => p.search(q, filters)));
     const results = [];
     const errors = [];
     settled.forEach((s, i) => {
@@ -109,7 +117,7 @@ const api = {
     const book = await loadBook(url.searchParams.get('provider'), url.searchParams.get('id'));
     if (!book) return send(res, 404, { error: 'Книга не найдена' });
     // Платная книга без покупки: ссылки на аудио не отдаём.
-    const locked = Boolean(book.price) && !owned(uid).includes(`${book.provider}:${book.id}`);
+    const locked = !isUnlocked(book, uid);
     // Если провайдер не даёт постоянных ссылок (resolveTrack), аудио идёт через /api/stream.
     book.tracks = book.tracks.map((t) => ({
       title: t.title,
@@ -129,7 +137,7 @@ const api = {
     if (!provider?.resolveTrack) return send(res, 404, { error: 'Не найдено' });
     const book = await provider.getBook(id);
     if (!book) return send(res, 404, { error: 'Книга не найдена' });
-    if (book.price && !owned(uid).includes(`${book.provider}:${book.id}`)) {
+    if (!isUnlocked(book, uid)) {
       return send(res, 402, { error: 'Книга не куплена' });
     }
     const link = await provider.resolveTrack(id, url.searchParams.get('track') || '');
@@ -141,7 +149,12 @@ const api = {
       headers: req.headers.range ? { Range: req.headers.range } : {},
       signal: abort.signal,
     });
-    if (!upstream.ok || !upstream.body) return send(res, 502, { error: 'Провайдер не отдал аудио' });
+    // Вместо аудио провайдер может вернуть страницу с ошибкой (например, «книга не куплена»).
+    const type = upstream.headers.get('content-type') || '';
+    if (!upstream.ok || !upstream.body || !/^(audio\/|application\/octet-stream)/.test(type)) {
+      abort.abort();
+      return send(res, 502, { error: 'Провайдер не отдал аудио' });
+    }
     const headers = { 'Cache-Control': 'private, no-store' };
     for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
       if (upstream.headers.get(h)) headers[h] = upstream.headers.get(h);
@@ -157,6 +170,7 @@ const api = {
     const book = await loadBook(provider, id);
     if (!book) return send(res, 404, { error: 'Книга не найдена' });
     if (!book.price) return send(res, 400, { error: 'Эта книга бесплатная' });
+    if (book.buyUrl) return send(res, 400, { error: 'Эта книга покупается на сайте провайдера' });
     if (owned(uid).includes(`${book.provider}:${book.id}`)) {
       return send(res, 400, { error: 'Книга уже куплена' });
     }
@@ -169,6 +183,19 @@ const api = {
     if (!item) return send(res, 402, { error: 'Оплата не подтверждена' });
     grant(uid, item);
     return { item, owned: owned(uid) };
+  },
+
+  // Вход в личный аккаунт ЛитРес. Пароль уходит только в ЛитРес и не сохраняется.
+  'POST /api/litres/login': async (req) => {
+    const { login, pwd } = await readJson(req);
+    if (!litres.enabled() || !login || !pwd) throw new Error('Укажите логин и пароль');
+    await litres.login(String(login), String(pwd));
+    return { login: litres.account().login };
+  },
+
+  'POST /api/litres/logout': async () => {
+    litres.logout();
+    return { login: null };
   },
 
   'GET /api/demo-order': async (req, res, url, uid) => {
